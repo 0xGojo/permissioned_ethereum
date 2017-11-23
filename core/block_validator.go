@@ -37,10 +37,9 @@ import (
 )
 
 /** added this section for purposing**/
+const checkingMinerABI = `[{"constant":false,"inputs":[{"name":"_miner","type":"address"}],"name":"removeMiner","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"_miner","type":"address"}],"name":"check","outputs":[{"name":"","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"miner","outputs":[{"name":"","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_miner","type":"address"}],"name":"addMiner","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"inputs":[],"payable":false,"stateMutability":"nonpayable","type":"constructor"}]`
+const checkingMinerAddr = `0x5D48d85Cbad801d76523DD1A890af2B5ee18D08b`
 
-/** end this section **/
-
-// client, err       = ethclient.Dial("/home/thach/.ethereum/geth.ipc")
 // BlockValidator is responsible for validating block headers, uncles and
 // processed state.
 //
@@ -62,8 +61,7 @@ func NewBlockValidator(config *params.ChainConfig, blockchain *BlockChain, engin
 }
 
 var (
-	opts      *bind.CallOpts
-	Contract1 *bind.BoundContract2
+	contract1 *bind.BoundContract2
 )
 
 // ValidateBody validates the given block's uncles and verifies the the block
@@ -82,48 +80,35 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	// return fmt.Errorf("you should get permission to mine in our network: have %x", header.Coinbase)
 	// Header validity is known at this point, check the uncles and transactions
 	header := block.Header()
-	// ipcEnpoint := node.ReturnIPCendpoint()
 	client, err := ethclient.Dial(node.IpcEndpointValue)
-	log.Info(fmt.Sprintf("IPC endpoint opened: %s", node.IpcEndpointValue))
-	checkingMinerABI := `[{"constant":false,"inputs":[{"name":"_miner","type":"address"}],"name":"removeMiner","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"_miner","type":"address"}],"name":"check","outputs":[{"name":"","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"miner","outputs":[{"name":"","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_miner","type":"address"}],"name":"addMiner","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"inputs":[],"payable":false,"stateMutability":"nonpayable","type":"constructor"}]`
-	checkingMinerAddr := `0x5D48d85Cbad801d76523DD1A890af2B5ee18D08b`
-	// checkingMinerAddr := []byte{0x4A, 0xD8, 0x71, 0x06, 0xFD, 0xA3, 0x0C, 0x4F, 0xAD, 0x7C, 0x62, 0x30, 0xD0, 0x9B, 0xF6, 0x9F, 0x25, 0xD0, 0x23, 0xED}
 	parsed, err := abi.JSON(strings.NewReader(checkingMinerABI))
 	if err != nil {
 		return err
 	}
+
 	opts := new(bind.CallOpts)
 	ctx := ensureContext2(opts.Context)
-	// Contract1 = bind.NewBoundContract(common.BytesToAddress(checkingMinerAddr), parsed, nil, nil)
-	Contract1 = &bind.BoundContract2{
+	// create instance of a contract to call and check who miner is allowed to mine in our network
+	contract1 := bind.BoundContract2{
 		Address: common.HexToAddress(checkingMinerAddr),
 		Abi:     parsed,
 	}
-
-	// output, err := Contract1.CallContractChecking(nil, "check", header.Coinbase)
-	input, err := Contract1.Abi.Pack("check", header.Coinbase)
+	input, err := contract1.Abi.Pack("check", header.Coinbase)
 	if err != nil {
-		log.Info("something wrong when call to get contract state")
+		log.Info("something wrong pack method and params contract")
 		return err
 	}
-	allocData := []byte{0x3B, 0x58, 0xE3, 0xED, 0x47, 0xDA, 0x42, 0x2C, 0xFE, 0xEF, 0xE5, 0xEB, 0x47, 0xCA, 0x44, 0xE4, 0x3E, 0x37, 0x57, 0xE6}
-	msg := ethereum.CallMsg{From: common.BytesToAddress(allocData), To: &Contract1.Address, Data: input}
+	msg := ethereum.CallMsg{From: common.HexToAddress(`0x3B58e3ed47Da422cFeEFE5eB47ca44e43e3757e6`), To: &contract1.Address, Data: input}
 	// var output hexutil.Bytes
 	output, err := client.CallContract(ctx, msg, nil)
 	if err != nil {
 		log.Info("something wrong when call to get contract state")
 		return err
 	}
-	resultString := string(output)
 	result := string(output[31] + 48)
-	if err != nil {
-		log.Info("something wrong when call to get contract state")
-		return err
-	}
-	if result == "0" {
-		// log.Info("" + fmt.Printf("Have out put string : "+s))
-		log.Info("Have out put string : %t\n", result)
-		return fmt.Errorf("you should get permission to mine in our network: have %x \n %x \n %t \n"+resultString, header.Coinbase, output, result)
+	// check who can mine in our network
+	if result != "1" {
+		return fmt.Errorf("you should get permission to mine in our network: have %x \n %x \n %s ", header.Coinbase, output, result)
 	}
 	if err := v.engine.VerifyUncles(v.bc, block); err != nil {
 		return err

@@ -65,7 +65,9 @@ type BoundContract struct {
 	transactor ContractTransactor // Write interface to interact with the blockchain
 }
 
-// hello
+// BoundContract2 is the base wrapper object that reflects a contract on the
+// Ethereum network. It contains a collection of methods that are used by the
+// higher level contract bindings to operate.
 type BoundContract2 struct {
 	Address    common.Address     // Deployment address of the contract on the Ethereum blockchain
 	Abi        abi.ABI            // Reflect based ABI to access the correct Ethereum methods
@@ -151,41 +153,6 @@ func (c *BoundContract) Call(opts *CallOpts, result interface{}, method string, 
 		return err
 	}
 	return c.abi.Unpack(result, method, output)
-}
-
-func (c *BoundContract2) CallContractChecking(opts *CallOpts, method string, params ...interface{}) (string, error) {
-	// Don't crash on a lazy user
-	if opts == nil {
-		opts = new(CallOpts)
-	}
-	// Pack the input, call and unpack the results
-	input, err := c.Abi.Pack(method, params...)
-	if err != nil {
-		return "", fmt.Errorf("failed to suggest gas price: %v", err)
-	}
-	allocData := []byte{0x3B, 0x58, 0xE3, 0xED, 0x47, 0xDA, 0x42, 0x2C, 0xFE, 0xEF, 0xE5, 0xEB, 0x47, 0xCA, 0x44, 0xE4, 0x3E, 0x37, 0x57, 0xE6}
-	var (
-		msg = ethereum.CallMsg{From: common.BytesToAddress(allocData), To: &c.Address, Data: input}
-		ctx = ensureContext(opts.Context)
-		// code   []byte
-		// output []byte
-	)
-
-	output, err := c.Caller.CallContract(ctx, msg, nil)
-	// if err == nil && len(output) == 0 {
-	// 	// Make sure we have a contract to operate on, and bail out otherwise.
-	// 	if code, err = c.caller.CodeAt(ctx, c.address, nil); err != nil {
-	// 		return "", fmt.Errorf("failed to suggest gas price: %v", err)
-	// 	} else if len(code) == 0 {
-	// 		return "", fmt.Errorf("failed to suggest gas price: %v", err)
-	// 	}
-
-	// }
-	// if err != nil {
-	// 	return err
-	// }
-	// return c.abi.Unpack(result, method, output)
-	return string(output[:]), nil
 }
 
 // Transact invokes the (paid) contract method with params as input values.

@@ -324,7 +324,6 @@ func (n *Node) startIPC(apis []rpc.API) error {
 	go func() {
 		log.Info(fmt.Sprintf("IPC endpoint opened: %s", n.ipcEndpoint))
 		IpcEndpointValue = n.ipcEndpoint
-		log.Info(fmt.Sprintf("IPC endpoint opened: %s", IpcEndpointValue))
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
